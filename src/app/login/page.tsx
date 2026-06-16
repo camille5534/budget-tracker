@@ -27,8 +27,7 @@ export default function LoginPage() {
       if (error) {
         setError('帳號或密碼錯誤')
       } else {
-        router.push('/')
-        router.refresh()
+        window.location.href = '/'
       }
     } else {
       const { error } = await supabase.auth.signUp({ email, password })
