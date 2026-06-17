@@ -1,0 +1,47 @@
+name: 同步財政部發票
+
+on:
+  # 每個月 1 號和 16 號台灣時間早上 8 點自動執行（財政部發票每兩個月一期）
+  schedule:
+    - cron: '0 0 1,16 * *'   # UTC 00:00 = 台灣 08:00
+  # 也可以手動觸發，並指定年月
+  workflow_dispatch:
+    inputs:
+      year:
+        description: '年份（例如 2026）'
+        required: false
+        default: ''
+      month:
+        description: '月份（例如 6）'
+        required: false
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run invoice sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_USER_EMAIL: ${{ secrets.SUPABASE_USER_EMAIL }}
+          SUPABASE_USER_PASSWORD: ${{ secrets.SUPABASE_USER_PASSWORD }}
+          CARRIER_BARCODE: ${{ secrets.CARRIER_BARCODE }}
+          CARRIER_VERIFICATION: ${{ secrets.CARRIER_VERIFICATION }}
+        run: |
+          if [ -n "${{ github.event.inputs.year }}" ] && [ -n "${{ github.event.inputs.month }}" ]; then
+            python scripts/sync_invoices.py ${{ github.event.inputs.year }} ${{ github.event.inputs.month }}
+          else
+            python scripts/sync_invoices.py
+          fi
