@@ -27,28 +27,42 @@ async function fetchInvoicesFromGov(
     invTerm: yearMonth,
   })
 
-  const url = `https://einvoice.nat.gov.tw/PB2CAPIVAN/invapp/InvApp?${params}`
+  const url = 'https://einvoice.nat.gov.tw/PB2CAPIVAN/invapp/InvApp'
   const res = await fetch(url, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
     cache: 'no-store',
   })
 
-  if (!res.ok) throw new Error(`財政部 API 回應錯誤: ${res.status}`)
+  const rawText = await res.text()
 
-  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(`財政部 API HTTP ${res.status}：${rawText.substring(0, 200)}`)
+  }
+
+  if (rawText.trimStart().startsWith('<')) {
+    throw new Error(`財政部 API 回傳 HTML（可能 IP 被封鎖或 appID 無效）：${rawText.substring(0, 300)}`)
+  }
+
+  let data: { code: string; msg?: string; details?: unknown[] }
+  try {
+    data = JSON.parse(rawText)
+  } catch {
+    throw new Error(`財政部 API 回傳非 JSON：${rawText.substring(0, 300)}`)
+  }
 
   if (data.code !== '200') {
-    throw new Error(`財政部 API 錯誤: ${data.msg ?? JSON.stringify(data)}`)
+    throw new Error(`財政部 API 錯誤 code=${data.code}：${data.msg ?? rawText}`)
   }
 
   const details = data.details ?? []
-  return details.map((inv: {
+  return (details as {
     invNum: string
     sellerName: string
-    invDonatable: string
     amount: string
     invDate: string
-  }) => ({
+  }[]).map(inv => ({
     invoiceNumber: inv.invNum,
     sellerName: inv.sellerName ?? '未知商家',
     amount: Number(inv.amount),
