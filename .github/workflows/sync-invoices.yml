@@ -34,9 +34,7 @@ jobs:
       - name: Run invoice sync
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_USER_EMAIL: ${{ secrets.SUPABASE_USER_EMAIL }}
-          SUPABASE_USER_PASSWORD: ${{ secrets.SUPABASE_USER_PASSWORD }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           CARRIER_BARCODE: ${{ secrets.CARRIER_BARCODE }}
           CARRIER_VERIFICATION: ${{ secrets.CARRIER_VERIFICATION }}
         run: |

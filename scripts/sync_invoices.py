@@ -1,31 +1,27 @@
 #!/usr/bin/env python3
 """
-家庭收支表 - 財政部發票本機同步腳本
-在本機（台灣 IP）執行，繞過 Vercel 海外 IP 問題
+家庭收支表 - 財政部發票同步腳本（GitHub Actions 版）
+使用 Supabase Service Role Key，不需要帳號密碼
 
 使用方式：
   python sync_invoices.py            # 同步本月
   python sync_invoices.py 2026 5    # 同步指定年月
 """
 
+import os
 import sys
 import uuid
 import time
-import json
 import requests
 from datetime import datetime
-from pathlib import Path
 
 
-# ── 設定：優先從環境變數讀取（GitHub Actions），否則直接改這裡 ──
-import os
-
+# ── 設定：優先從環境變數讀取（GitHub Actions Secrets）──
 SUPABASE_URL          = os.getenv("SUPABASE_URL", "https://yacrqvbgjuixarajcvtg.supabase.co")
-SUPABASE_ANON_KEY     = os.getenv("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhY3JxdmJnanVpeGFyYWpjdnRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MTE0MDIsImV4cCI6MjA5NjI4NzQwMn0.OwVGt1DuWSi9WK9vIpogMVhCk_kWtbqdnIhMKHknq2o")
-USER_EMAIL            = os.getenv("SUPABASE_USER_EMAIL", "camille5534@gmail.com")
-USER_PASSWORD         = os.getenv("SUPABASE_USER_PASSWORD", "")   # ← 本機執行時填這裡
-CARRIER_BARCODE       = os.getenv("CARRIER_BARCODE", "")          # ← 手機條碼
-CARRIER_VERIFICATION  = os.getenv("CARRIER_VERIFICATION", "")     # ← 驗證碼
+SUPABASE_SERVICE_KEY  = os.getenv("SUPABASE_SERVICE_KEY", "")
+USER_ID               = os.getenv("SUPABASE_USER_ID", "0abb13f1-8be9-4452-a14c-f0da89a4b729")
+CARRIER_BARCODE       = os.getenv("CARRIER_BARCODE", "")
+CARRIER_VERIFICATION  = os.getenv("CARRIER_VERIFICATION", "")
 # ────────────────────────────────────────────────────────
 
 
@@ -33,28 +29,36 @@ def roc_year_month(year: int, month: int) -> str:
     return f"{year - 1911}{month:02d}"
 
 
-def supabase_headers(token: str) -> dict:
+def supabase_headers() -> dict:
     return {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {token}",
+        "apikey": SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
         "Content-Type": "application/json",
     }
 
 
-def login() -> tuple[str, str]:
-    """Supabase 登入，回傳 (access_token, user_id)"""
-    res = requests.post(
-        f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
-        headers={"apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json"},
-        json={"email": USER_EMAIL, "password": USER_PASSWORD},
+def fetch_carrier_settings() -> tuple[str, str]:
+    """從 Supabase 讀取手機條碼與驗證碼（若環境變數未設定）"""
+    if CARRIER_BARCODE and CARRIER_VERIFICATION:
+        return CARRIER_BARCODE, CARRIER_VERIFICATION
+
+    print("🔄 從 Supabase 讀取載具設定...")
+    res = requests.get(
+        f"{SUPABASE_URL}/rest/v1/budget_settings?user_id=eq.{USER_ID}&select=carrier_barcode,carrier_verification",
+        headers=supabase_headers(),
         timeout=10,
     )
-    if res.status_code != 200:
-        print(f"❌ Supabase 登入失敗：{res.text}")
+    if res.status_code != 200 or not res.json():
+        print(f"❌ 無法讀取載具設定：{res.text}")
         sys.exit(1)
-    data = res.json()
-    print(f"✅ Supabase 登入成功（{USER_EMAIL}）")
-    return data["access_token"], data["user"]["id"]
+    row = res.json()[0]
+    barcode = row.get("carrier_barcode", "")
+    verification = row.get("carrier_verification", "")
+    if not barcode or not verification:
+        print("❌ Supabase 中尚未設定手機條碼或驗證碼，請先在網站設定頁填入")
+        sys.exit(1)
+    print(f"✅ 載具設定讀取成功（{barcode}）")
+    return barcode, verification
 
 
 def fetch_invoices(barcode: str, verification: str, inv_term: str) -> list[dict]:
@@ -81,9 +85,8 @@ def fetch_invoices(barcode: str, verification: str, inv_term: str) -> list[dict]
     )
 
     if res.text.strip().startswith("<"):
-        print("❌ 財政部 API 回傳 HTML")
-        print("   可能原因：appID 無效。請告知開發者查詢正確 appID。")
-        print(f"   回應前 200 字：{res.text[:200]}")
+        print("❌ 財政部 API 回傳 HTML（IP 被封鎖或 appID 無效）")
+        print(f"   回應前 300 字：{res.text[:300]}")
         sys.exit(1)
 
     try:
@@ -102,11 +105,11 @@ def fetch_invoices(barcode: str, verification: str, inv_term: str) -> list[dict]
     return details
 
 
-def upsert_invoices(token: str, user_id: str, details: list[dict], year_month: str):
+def upsert_invoices(details: list[dict], year_month: str):
     """將發票寫入 Supabase"""
     rows = [
         {
-            "user_id": user_id,
+            "user_id": USER_ID,
             "invoice_number": inv.get("invNum", ""),
             "seller_name": inv.get("sellerName") or "未知商家",
             "amount": int(inv.get("amount", 0)),
@@ -118,7 +121,7 @@ def upsert_invoices(token: str, user_id: str, details: list[dict], year_month: s
 
     res = requests.post(
         f"{SUPABASE_URL}/rest/v1/invoices?on_conflict=user_id,invoice_number",
-        headers={**supabase_headers(token), "Prefer": "resolution=merge-duplicates"},
+        headers={**supabase_headers(), "Prefer": "resolution=merge-duplicates"},
         json=rows,
         timeout=15,
     )
@@ -127,28 +130,30 @@ def upsert_invoices(token: str, user_id: str, details: list[dict], year_month: s
         print(f"✅ 成功寫入 {len(rows)} 筆發票（{year_month}）")
     else:
         print(f"❌ Supabase 寫入失敗：{res.status_code} {res.text}")
+        sys.exit(1)
 
 
 def main():
+    if not SUPABASE_SERVICE_KEY:
+        print("❌ 請設定環境變數 SUPABASE_SERVICE_KEY")
+        sys.exit(1)
+
     now = datetime.now()
     year  = int(sys.argv[1]) if len(sys.argv) > 1 else now.year
     month = int(sys.argv[2]) if len(sys.argv) > 2 else now.month
 
-    if not USER_PASSWORD or not CARRIER_BARCODE or not CARRIER_VERIFICATION:
-        print("❌ 請先在腳本頂端填入 USER_PASSWORD、CARRIER_BARCODE、CARRIER_VERIFICATION")
-        sys.exit(1)
+    barcode, verification = fetch_carrier_settings()
 
-    token, user_id = login()
     inv_term = roc_year_month(year, month)
     year_month = f"{year}-{month:02d}"
 
-    details = fetch_invoices(CARRIER_BARCODE, CARRIER_VERIFICATION, inv_term)
+    details = fetch_invoices(barcode, verification, inv_term)
 
     if not details:
-        print("本月無發票資料")
+        print("本期無發票資料")
         return
 
-    upsert_invoices(token, user_id, details, year_month)
+    upsert_invoices(details, year_month)
 
 
 if __name__ == "__main__":
