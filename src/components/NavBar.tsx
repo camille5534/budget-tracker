@@ -1,21 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Receipt, PlusCircle, Settings, LogOut } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { LayoutDashboard, Scale, TrendingUp, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
 
 const navItems = [
-  { href: '/', label: '總覽', icon: LayoutDashboard },
-  { href: '/invoices', label: '發票', icon: Receipt },
-  { href: '/expenses', label: '支出', icon: PlusCircle },
-  { href: '/settings', label: '設定', icon: Settings },
+  { href: '/',        label: '總覽',     icon: LayoutDashboard },
+  { href: '/balance', label: '資產負債表', icon: Scale },
+  { href: '/strategy',label: '策略監控',  icon: TrendingUp },
 ]
 
 export default function NavBar() {
   const pathname = usePathname()
-  const router = useRouter()
+  const router   = useRouter()
   const supabase = createClient()
 
   async function handleLogout() {
@@ -23,10 +21,12 @@ export default function NavBar() {
     router.push('/login')
   }
 
+  if (pathname === '/login') return null
+
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-3">
-      <div className="max-w-4xl mx-auto flex items-center justify-between">
-        <span className="font-bold text-lg text-indigo-600">家庭收支表</span>
+      <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <span className="font-bold text-lg text-indigo-600">個人財務</span>
         <div className="flex items-center gap-1">
           {navItems.map(({ href, label, icon: Icon }) => (
             <Link

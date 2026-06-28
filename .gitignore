@@ -1,5 +1,9 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# 本機執行腳本（含密鑰，不推到 GitHub）
+scripts/*.bat
+scripts/sync_log.txt
+
 # dependencies
 /node_modules
 /.pnp
