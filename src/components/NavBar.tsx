@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Scale, TrendingUp, LogOut } from 'lucide-react'
+import { LayoutDashboard, Scale, TrendingUp, Receipt, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 
 const navItems = [
-  { href: '/',        label: '總覽',     icon: LayoutDashboard },
-  { href: '/balance', label: '資產負債表', icon: Scale },
-  { href: '/strategy',label: '策略監控',  icon: TrendingUp },
+  { href: '/',         label: '總覽',     icon: LayoutDashboard },
+  { href: '/balance',  label: '資產負債表', icon: Scale },
+  { href: '/strategy', label: '策略監控',  icon: TrendingUp },
+  { href: '/cashflow', label: '每月收支',  icon: Receipt },
 ]
 
 export default function NavBar() {
