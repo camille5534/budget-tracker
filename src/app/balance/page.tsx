@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus, Pencil, Check, X } from 'lucide-react'
 import { fmtNTD, marketValue, type HoldingRow } from '@/lib/strategy'
 
 type BalanceItem = {
@@ -29,6 +29,7 @@ export default function BalancePage() {
   const [loading,  setLoading]  = useState(true)
   const [addKind,  setAddKind]  = useState<'asset' | 'liability' | null>(null)
   const [form,     setForm]     = useState(EMPTY_FORM)
+  const [editItem, setEditItem] = useState<{ id: string; name: string; amount: string } | null>(null)
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -55,6 +56,17 @@ export default function BalancePage() {
     })
     setForm(EMPTY_FORM)
     setAddKind(null)
+    load()
+  }
+
+  async function handleEdit() {
+    if (!editItem || !editItem.amount) return
+    await fetch('/api/balance-items', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editItem.id, name: editItem.name, amount: Number(editItem.amount) }),
+    })
+    setEditItem(null)
     load()
   }
 
@@ -113,20 +125,44 @@ export default function BalancePage() {
             </div>
 
             {assets.map(i => (
-              <div key={i.id} className="flex justify-between items-center py-1.5 group">
-                <div>
-                  <p className="text-sm text-gray-700">{i.name}</p>
-                  {i.is_cash && <span className="text-xs text-emerald-600 bg-emerald-50 px-1 rounded">計入策略現金</span>}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{fmtNTD(i.amount)}</span>
-                  <button
-                    onClick={() => handleDelete(i.id)}
-                    className="text-gray-200 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+              <div key={i.id} className="py-1.5 group">
+                {editItem?.id === i.id ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editItem.name}
+                      onChange={e => setEditItem(v => v && ({ ...v, name: e.target.value }))}
+                      className="h-7 text-sm flex-1"
+                    />
+                    <Input
+                      type="number"
+                      value={editItem.amount}
+                      onChange={e => setEditItem(v => v && ({ ...v, amount: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && handleEdit()}
+                      className="h-7 text-sm w-32"
+                      autoFocus
+                    />
+                    <button onClick={handleEdit} className="text-emerald-600 hover:text-emerald-700"><Check size={14} /></button>
+                    <button onClick={() => setEditItem(null)} className="text-red-400 hover:text-red-500"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-sm text-gray-700">{i.name}</p>
+                      {i.is_cash && <span className="text-xs text-emerald-600 bg-emerald-50 px-1 rounded">計入策略現金</span>}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-sm">{fmtNTD(i.amount)}</span>
+                      <button
+                        onClick={() => setEditItem({ id: i.id, name: i.name, amount: String(i.amount) })}
+                        className="text-gray-300 hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100"
+                      ><Pencil size={12} /></button>
+                      <button
+                        onClick={() => handleDelete(i.id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                      ><Trash2 size={12} /></button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 
@@ -188,17 +224,41 @@ export default function BalancePage() {
           </CardHeader>
           <CardContent className="space-y-1.5">
             {liabs.map(i => (
-              <div key={i.id} className="flex justify-between items-center py-1.5 group">
-                <p className="text-sm text-gray-700">{i.name}</p>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm text-red-500">{fmtNTD(i.amount)}</span>
-                  <button
-                    onClick={() => handleDelete(i.id)}
-                    className="text-gray-200 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+              <div key={i.id} className="py-1.5 group">
+                {editItem?.id === i.id ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editItem.name}
+                      onChange={e => setEditItem(v => v && ({ ...v, name: e.target.value }))}
+                      className="h-7 text-sm flex-1"
+                    />
+                    <Input
+                      type="number"
+                      value={editItem.amount}
+                      onChange={e => setEditItem(v => v && ({ ...v, amount: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && handleEdit()}
+                      className="h-7 text-sm w-32"
+                      autoFocus
+                    />
+                    <button onClick={handleEdit} className="text-emerald-600 hover:text-emerald-700"><Check size={14} /></button>
+                    <button onClick={() => setEditItem(null)} className="text-red-400 hover:text-red-500"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-gray-700">{i.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-sm text-red-500">{fmtNTD(i.amount)}</span>
+                      <button
+                        onClick={() => setEditItem({ id: i.id, name: i.name, amount: String(i.amount) })}
+                        className="text-gray-300 hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100"
+                      ><Pencil size={12} /></button>
+                      <button
+                        onClick={() => handleDelete(i.id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                      ><Trash2 size={12} /></button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 
