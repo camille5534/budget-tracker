@@ -47,7 +47,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-center text-2xl">家庭收支表</CardTitle>
+          <CardTitle className="text-center text-2xl">個人財務</CardTitle>
           <p className="text-center text-sm text-gray-500">
             {mode === 'login' ? '帳號密碼登入' : '建立新帳號'}
           </p>
